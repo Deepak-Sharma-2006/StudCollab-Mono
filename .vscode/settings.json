@@ -1,0 +1,5 @@
+{
+  "spring-boot.ls.java.home": "${env:JAVA_HOME}",
+  "spring-boot.ls.log.level": "info",
+  "java.compile.nullAnalysis.mode": "automatic"
+}
