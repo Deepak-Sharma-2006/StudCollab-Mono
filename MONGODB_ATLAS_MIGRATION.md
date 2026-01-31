@@ -47,7 +47,7 @@ spring.data.mongodb.database=studencollabfin
 
 Contains:
 ```
-MONGO_DB_PASSWORD=Y7tgfrOHFxF1jrNU
+MONGO_DB_PASSWORD=your_mongodb_atlas_password
 ```
 
 With detailed instructions for:
@@ -70,17 +70,17 @@ With detailed instructions for:
 
 #### Windows (Command Prompt):
 ```bash
-set MONGO_DB_PASSWORD=Y7tgfrOHFxF1jrNU && mvn spring-boot:run
+set MONGO_DB_PASSWORD=your_mongodb_atlas_password && mvn spring-boot:run
 ```
 
 #### Windows (PowerShell):
 ```powershell
-$env:MONGO_DB_PASSWORD="Y7tgfrOHFxF1jrNU"; mvn spring-boot:run
+$env:MONGO_DB_PASSWORD="your_mongodb_atlas_password"; mvn spring-boot:run
 ```
 
 #### Linux/macOS:
 ```bash
-MONGO_DB_PASSWORD=Y7tgfrOHFxF1jrNU mvn spring-boot:run
+MONGO_DB_PASSWORD=your_mongodb_atlas_password mvn spring-boot:run
 ```
 
 ### **Option 2: Create Local .env File (Secure for Local Development)**
@@ -107,13 +107,13 @@ Set permanently in your system environment:
 
 **Windows:**
 1. Settings → System → Environment Variables
-2. Add: `MONGO_DB_PASSWORD=Y7tgfrOHFxF1jrNU`
+2. Add: `MONGO_DB_PASSWORD=your_mongodb_atlas_password`
 3. Restart IDE or terminal
 
 **Linux/macOS:**
 ```bash
 # Add to ~/.bashrc, ~/.zshrc, or ~/.bash_profile
-export MONGO_DB_PASSWORD=Y7tgfrOHFxF1jrNU
+export MONGO_DB_PASSWORD=your_mongodb_atlas_password
 ```
 
 ---

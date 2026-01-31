@@ -44,7 +44,7 @@ Updated with:
 **File:** `.env.example` (Project root)
 
 ```
-MONGO_DB_PASSWORD=Y7tgfrOHFxF1jrNU
+MONGO_DB_PASSWORD=your_mongodb_atlas_password
 ```
 
 With comprehensive documentation:
@@ -80,17 +80,17 @@ Comprehensive documentation including:
 
 #### Windows (Command Prompt):
 ```bash
-set MONGO_DB_PASSWORD=Y7tgfrOHFxF1jrNU && mvn spring-boot:run
+set MONGO_DB_PASSWORD=your_mongodb_atlas_password && mvn spring-boot:run
 ```
 
 #### Windows (PowerShell):
 ```powershell
-$env:MONGO_DB_PASSWORD="Y7tgfrOHFxF1jrNU"; mvn spring-boot:run
+$env:MONGO_DB_PASSWORD="your_mongodb_atlas_password"; mvn spring-boot:run
 ```
 
 #### Linux/macOS:
 ```bash
-MONGO_DB_PASSWORD=Y7tgfrOHFxF1jrNU mvn spring-boot:run
+MONGO_DB_PASSWORD=your_mongodb_atlas_password mvn spring-boot:run
 ```
 
 ### **Step 2: Start Frontend**
@@ -144,7 +144,7 @@ npm run dev
 **Region:** Mumbai (ap-south-1)  
 **Database Name:** studencollabfin  
 **Username:** diptan0506  
-**Password:** Y7tgfrOHFxF1jrNU (use as MONGO_DB_PASSWORD)
+**Password:** (kept secure - set via MONGO_DB_PASSWORD environment variable)
 
 **Collections:**
 - users
@@ -227,7 +227,7 @@ To switch back to localhost MongoDB:
 | Problem | Solution |
 |---------|----------|
 | "Connection refused" | Set MONGO_DB_PASSWORD environment variable |
-| "Authentication failed" | Verify password in MONGO_DB_PASSWORD matches Y7tgfrOHFxF1jrNU |
+| "Authentication failed" | Verify MONGO_DB_PASSWORD is set correctly in environment |
 | "Cluster not found" | Verify cluster name is "finiq" |
 | Application won't start | Check Spring Boot logs for detailed error message |
 | Data not persisting | Verify MongoDB Atlas cluster is active and accepts connections |

@@ -4,17 +4,17 @@
 
 ### **Option 1: Windows Command Prompt**
 ```bash
-set MONGO_DB_PASSWORD=Y7tgfrOHFxF1jrNU && mvn spring-boot:run
+set MONGO_DB_PASSWORD=your_mongodb_atlas_password && mvn spring-boot:run
 ```
 
 ### **Option 2: Windows PowerShell**
 ```powershell
-$env:MONGO_DB_PASSWORD="Y7tgfrOHFxF1jrNU"; mvn spring-boot:run
+$env:MONGO_DB_PASSWORD="your_mongodb_atlas_password"; mvn spring-boot:run
 ```
 
 ### **Option 3: Linux/macOS**
 ```bash
-MONGO_DB_PASSWORD=Y7tgfrOHFxF1jrNU mvn spring-boot:run
+MONGO_DB_PASSWORD=your_mongodb_atlas_password mvn spring-boot:run
 ```
 
 ---
@@ -26,7 +26,7 @@ MONGO_DB_PASSWORD=Y7tgfrOHFxF1jrNU mvn spring-boot:run
 | **Database** | studencollabfin |
 | **Cluster** | finiq (Mumbai) |
 | **Username** | diptan0506 |
-| **Password** | Y7tgfrOHFxF1jrNU |
+| **Password** | Check `.env` or GitHub Secrets |
 | **URI** | `mongodb+srv://diptan0506:${MONGO_DB_PASSWORD}@finiq.mukfozh.mongodb.net/studencollabfin?retryWrites=true&w=majority` |
 
 ---
