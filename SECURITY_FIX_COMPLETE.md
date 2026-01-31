@@ -7,7 +7,7 @@
 
 ## 🔒 What Was Fixed
 
-Your MongoDB Atlas password (`Y7tgfrOHFxF1jrNU`) was exposed in the previous commit that was pushed to GitHub. This has been **secured** as follows:
+Your MongoDB Atlas password was exposed in the previous commit that was pushed to GitHub. This has been **secured** as follows:
 
 ---
 
@@ -77,7 +77,7 @@ If you want to keep the current password:
 
 ### **If You Rotate Password:**
 ```
-Old password (Y7tgfrOHFxF1jrNU): INVALID
+Old password: INVALID
 New password (you generate): VALID
 → Old exposed password becomes useless
 ```

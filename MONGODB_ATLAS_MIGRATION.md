@@ -198,7 +198,7 @@ After setting up, verify the connection:
 1. **Start Spring Boot Backend:**
    ```bash
    cd server
-   set MONGO_DB_PASSWORD=Y7tgfrOHFxF1jrNU && mvn spring-boot:run
+   set MONGO_DB_PASSWORD=your_password && mvn spring-boot:run
    ```
 
 2. **Check Logs for Success:**
