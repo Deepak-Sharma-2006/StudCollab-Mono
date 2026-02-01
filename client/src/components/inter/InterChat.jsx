@@ -1,13 +1,19 @@
 import { useEffect, useState, useRef } from "react";
-import axios from "axios";
 import SockJS from "sockjs-client";
 import { over } from "stompjs";
 import { Card } from "@/components/ui/card.jsx";
 import { Button } from "@/components/ui/button.jsx";
 import { Badge } from "@/components/ui/badge.jsx";
 import { Input } from "@/components/ui/input.jsx";
+import api, { 
+  getUserConversations, 
+  getMessages, 
+  sendMessage, 
+  sendCollabInvite,
+  getPendingInvites,
+  respondToInvite 
+} from '@/lib/api.js';
 
-const API_BASE = "/api/messages";
 const WS_URL = "http://localhost:8080/ws-studcollab";
 
 // Hook to fetch conversations for a user
@@ -18,7 +24,7 @@ function useConversations(userId) {
   useEffect(() => {
     if (!userId) return;
     setLoading(true);
-    axios.get(`${API_BASE}/conversations/${userId}`)
+    getUserConversations(userId)
       .then(res => setConversations(res.data || []))
       .catch(err => console.error("Failed to fetch conversations:", err))
       .finally(() => setLoading(false));
@@ -35,7 +41,7 @@ function useMessages(conversationId) {
   useEffect(() => {
     if (!conversationId) return;
     setLoading(true);
-    axios.get(`${API_BASE}/conversation/${conversationId}/messages`)
+    getMessages(conversationId)
       .then(res => setMessages(res.data || []))
       .catch(err => console.error("Failed to fetch messages:", err))
       .finally(() => setLoading(false));

@@ -260,6 +260,13 @@ export default function App() {
         if (res.ok) {
           // ✅ Token is valid
           const serverUser = await res.json();
+          console.log('✅ User data received from /api/auth/me:', {
+            id: serverUser.id,
+            isDev: serverUser.isDev,
+            role: serverUser.role,
+            badges: serverUser.badges,
+            email: serverUser.email
+          });
           setUser(serverUser);
           saveUser(serverUser);
           console.log('✅ Session verified - Token is valid');

@@ -2,7 +2,7 @@ import React, { useState, useEffect, Suspense } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls, Sphere, MeshDistortMaterial, Stars, Float, Text } from '@react-three/drei';
 import { motion, AnimatePresence } from 'framer-motion';
-import api from '@/lib/api';
+import api, { getDiscoveryMesh, sendCollabInvite } from '@/lib/api';
 
 /**
  * Global Discovery Mesh Component - 3D Edition
@@ -35,7 +35,7 @@ export default function DiscoveryMesh({ user }) {
         const token = localStorage.getItem('token') || localStorage.getItem('jwt_token');
         console.log('🔑 Token available:', !!token);
         
-        const res = await api.get('/api/discovery/mesh');
+        const res = await getDiscoveryMesh();
         console.log('✅ Discovery mesh loaded:', res.data);
         console.log('📊 Total candidates:', res.data?.length || 0);
         
@@ -89,9 +89,7 @@ export default function DiscoveryMesh({ user }) {
         return;
       }
       
-      const response = await api.post(`/api/messages/invite/${userId}`, {
-        senderId: senderId
-      });
+      const response = await sendCollabInvite(userId, senderId);
       
       console.log('✅ Invite sent successfully:', response.data);
       alert('✨ Collab invite sent! They will see it in their Inbox.');

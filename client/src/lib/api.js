@@ -338,5 +338,98 @@ export const clearAllInbox = (userId) => {
     }).then(res => res.data);
 };
 
+// ============================================
+// ✅ MESSAGING & DISCOVERY API Functions
+// ============================================
+
+/**
+ * Get all conversations for a user
+ * @param {string} userId - User ID
+ * @returns {Promise<Array>} List of conversations
+ */
+export const getUserConversations = (userId) => {
+    return api.get(`/api/messages/conversations/${userId}`);
+};
+
+/**
+ * Create a new conversation with participants
+ * @param {Array<string>} participantIds - Array of participant user IDs
+ * @returns {Promise<Object>} Created conversation
+ */
+export const createConversation = (participantIds) => {
+    return api.post('/api/messages/conversations', { participantIds });
+};
+
+/**
+ * Get a specific conversation
+ * @param {string} conversationId - Conversation ID
+ * @returns {Promise<Object>} Conversation object
+ */
+export const getConversation = (conversationId) => {
+    return api.get(`/api/messages/conversation/${conversationId}`);
+};
+
+/**
+ * Get all messages in a conversation
+ * @param {string} conversationId - Conversation ID
+ * @returns {Promise<Array>} List of messages
+ */
+export const getMessages = (conversationId) => {
+    return api.get(`/api/messages/conversation/${conversationId}/messages`);
+};
+
+/**
+ * Send a message in a conversation
+ * @param {string} conversationId - Conversation ID
+ * @param {string} senderId - Sender user ID
+ * @param {string} text - Message text
+ * @param {Array<string>} attachmentUrls - Optional attachment URLs
+ * @returns {Promise<Object>} Sent message
+ */
+export const sendMessage = (conversationId, senderId, text, attachmentUrls = []) => {
+    return api.post(`/api/messages/conversation/${conversationId}/send`, {
+        senderId,
+        text,
+        attachmentUrls
+    });
+};
+
+/**
+ * Send a collab invite to a user
+ * @param {string} targetUserId - Target user ID
+ * @param {string} senderId - Sender user ID
+ * @returns {Promise<Object>} Created conversation/invitation
+ */
+export const sendCollabInvite = (targetUserId, senderId) => {
+    return api.post(`/api/messages/invite/${targetUserId}`, { senderId });
+};
+
+/**
+ * Get pending invites for a user
+ * @param {string} userId - User ID
+ * @returns {Promise<Array>} List of pending invitations
+ */
+export const getPendingInvites = (userId) => {
+    return api.get(`/api/messages/invites/${userId}`);
+};
+
+/**
+ * Respond to an invite (accept/reject)
+ * @param {string} conversationId - Conversation ID
+ * @param {boolean} accept - True to accept, false to reject
+ * @returns {Promise<Object>} Updated conversation
+ */
+export const respondToInvite = (conversationId, accept) => {
+    return api.post(`/api/messages/invites/${conversationId}/respond`, { accept });
+};
+
+/**
+ * Get discovery mesh - global skill-matched collaborators
+ * @returns {Promise<Array>} Top 5 skill-matched users globally
+ */
+export const getDiscoveryMesh = () => {
+    return api.get('/api/discovery/mesh');
+};
+
 // Default export of the configured axios instance
 export default api;

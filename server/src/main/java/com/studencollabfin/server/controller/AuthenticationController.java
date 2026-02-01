@@ -6,6 +6,7 @@ import com.studencollabfin.server.dto.AuthenticationResponse;
 import com.studencollabfin.server.dto.RegisterRequest;
 import com.studencollabfin.server.model.User;
 import com.studencollabfin.server.service.UserService;
+import com.studencollabfin.server.service.AchievementService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import jakarta.servlet.http.Cookie;
@@ -20,10 +21,12 @@ public class AuthenticationController {
 
     private final UserService userService;
     private final JwtUtil jwtUtil;
+    private final AchievementService achievementService;
 
-    public AuthenticationController(UserService userService, JwtUtil jwtUtil) {
+    public AuthenticationController(UserService userService, JwtUtil jwtUtil, AchievementService achievementService) {
         this.userService = userService;
         this.jwtUtil = jwtUtil;
+        this.achievementService = achievementService;
     }
 
     @PostMapping("/login")
@@ -105,7 +108,11 @@ public class AuthenticationController {
             String email = jwtUtil.getUsernameFromToken(jwt);
             User user = userService.findByEmail(email);
 
-            return ResponseEntity.ok(user);
+            // ✅ CRITICAL: Sync all badges based on current user attributes (isDev, role,
+            // etc.)
+            User syncedUser = achievementService.syncUserBadges(user);
+
+            return ResponseEntity.ok(syncedUser);
         } catch (Exception e) {
             return ResponseEntity.status(401).body(e.getMessage());
         }

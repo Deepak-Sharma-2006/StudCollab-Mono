@@ -61,16 +61,19 @@ export default function EventsHub({ user, onNavigateToBeacon }) {
 
   // Debug: Log user data to verify flags are being received correctly
   useEffect(() => {
-    console.log('[EventsHub] User flags:', { 
-      userId: user?.id, 
-      isDev: user?.isDev, 
-      role: user?.role,
-      isCatalyst: isCatalyst,
-      isDev_local: isDev,
-      canCreateEvent: canCreateEvent,
-      badges: user?.badges 
-    });
-  }, [user, isCatalyst, isDev, canCreateEvent]);
+    if (user) {
+      console.log('[EventsHub] User data received:', {
+        userId: user?.id,
+        isDev_raw: user?.isDev,
+        isDev_boolean: typeof user?.isDev,
+        role: user?.role,
+        isCatalyst_check: isCatalyst,
+        isDev_check: isDev,
+        canCreateEvent: canCreateEvent,
+        badges: user?.badges
+      });
+    }
+  }, [user?.id, user?.isDev, user?.role, isCatalyst, isDev, canCreateEvent]);
   const categoryOptions = [
     { id: 'Hackathon', label: 'Hackathon', icon: '💻' },
     { id: 'Fest', label: 'Fest', icon: '🎉' },
