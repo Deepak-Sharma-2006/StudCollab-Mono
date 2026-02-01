@@ -2,25 +2,30 @@ import { useState, useEffect } from 'react';
 import { fetchMyInbox, markInboxAsRead, deleteInboxItem, deleteInboxItemsBulk, clearInboxByType, clearAllInbox } from '@/lib/api.js';
 import { Button } from '@/components/ui/button.jsx';
 import LoadingSpinner from '@/components/animations/LoadingSpinner.jsx';
+import api from '@/lib/api.js';
 
 /**
- * ✅ INBOX FEATURE: Main inbox page with filtering, selection, and bulk delete
+ * ✅ INBOX FEATURE: Main inbox page with filtering, selection, bulk delete, and PENDING INVITES
  * 
  * Features:
+ * - Incoming Requests section at the top (Pending collaboration invites)
  * - Filter tabs: All / Rejections / Bans
  * - Selection mode with checkboxes
  * - Floating action bar for bulk delete
  * - Clear options modal
  * - Type-specific styling (POD_BAN red, APPLICATION_REJECTION yellow)
  * 
- * Stage 4 & 5 Frontend Implementation
+ * Stage 4 & 5 Frontend Implementation + Global Hub Integration
  */
 export default function InboxPage({ user }) {
     const [inboxItems, setInboxItems] = useState([]);
+    const [pendingInvites, setPendingInvites] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [markingAsRead, setMarkingAsRead] = useState(null);
     const [deleting, setDeleting] = useState(null);
+    const [respondingTo, setRespondingTo] = useState(null);
+    const [inviteInitiators, setInviteInitiators] = useState({}); // Map of inviteId -> initiatorName
 
     // Filter state
     const [selectedFilter, setSelectedFilter] = useState('all');
@@ -33,9 +38,10 @@ export default function InboxPage({ user }) {
     const [showClearModal, setShowClearModal] = useState(false);
     const [isClearing, setIsClearing] = useState(null);
 
-    // Fetch inbox items on mount
+    // Fetch inbox items and pending invites on mount
     useEffect(() => {
         loadInbox();
+        loadPendingInvites();
     }, []);
 
     const loadInbox = async () => {
@@ -52,6 +58,68 @@ export default function InboxPage({ user }) {
         } finally {
             setLoading(false);
         }
+    };
+
+    /**
+     * Load pending collaboration invites and fetch initiator names
+     */
+    const loadPendingInvites = async () => {
+        try {
+            const res = await api.get(`/api/messages/invites/pending/${user.id}`);
+            const invites = res.data || [];
+            setPendingInvites(invites);
+            console.log('✅ Loaded pending invites:', invites);
+            
+            // Fetch initiator names for each invite
+            const initiatorMap = {};
+            for (const invite of invites) {
+                if (invite.initiatorId) {
+                    try {
+                        const userRes = await api.get(`/api/users/${invite.initiatorId}`);
+                        initiatorMap[invite.id] = userRes.data?.fullName || invite.initiatorId;
+                    } catch (err) {
+                        console.error('Error fetching initiator data:', err);
+                        initiatorMap[invite.id] = invite.initiatorId;
+                    }
+                }
+            }
+            setInviteInitiators(initiatorMap);
+        } catch (err) {
+            console.error('❌ Error loading pending invites:', err);
+            // Don't fail the whole page if invites fail
+            setPendingInvites([]);
+        }
+    };
+
+    /**
+     * Respond to a pending collaboration invite
+     */
+    const handleRespondToInvite = async (conversationId, accept) => {
+        setRespondingTo(conversationId);
+        try {
+            const response = await api.post(`/api/messages/invite/${conversationId}/respond`, { accept });
+            console.log(`✅ Invite ${accept ? 'accepted' : 'declined'}:`, response.data);
+            
+            // Remove from pending invites list
+            setPendingInvites(invites => invites.filter(inv => inv.id !== conversationId));
+            
+            // If accepted, show success message
+            if (accept) {
+                alert('✨ Collaboration accepted! You can now chat in Messages.');
+            }
+        } catch (err) {
+            console.error('❌ Error responding to invite:', err);
+            alert(`Failed to respond to invite: ${err.response?.data?.error || 'Unknown error'}`);
+        } finally {
+            setRespondingTo(null);
+        }
+    };
+
+    /**
+     * Get the initiator's name for a pending invite
+     */
+    const getOtherUser = (conversation) => {
+        return inviteInitiators[conversation.id] || conversation.initiatorId || 'Unknown User';
     };
 
     // Filter items based on selected filter
@@ -265,11 +333,74 @@ export default function InboxPage({ user }) {
                 </div>
 
                 <p className="text-slate-400">
-                    {inboxItems.length === 0
+                    {inboxItems.length === 0 && pendingInvites.length === 0
                         ? 'No notifications yet'
-                        : `You have ${inboxItems.length} notification${inboxItems.length !== 1 ? 's' : ''}`}
+                        : `You have ${inboxItems.length} notification${inboxItems.length !== 1 ? 's' : ''} and ${pendingInvites.length} pending request${pendingInvites.length !== 1 ? 's' : ''}`}
                 </p>
             </div>
+
+            {/* ========== INCOMING REQUESTS SECTION ========== */}
+            {pendingInvites.length > 0 && (
+                <div className="mb-8">
+                    <div className="flex items-center gap-2 mb-4">
+                        <span className="text-2xl">🤝</span>
+                        <h2 className="text-2xl font-bold text-cyan-400">Incoming Requests</h2>
+                        <span className="ml-2 px-3 py-1 bg-cyan-500/20 border border-cyan-500/40 rounded-full text-xs font-bold text-cyan-300">
+                            {pendingInvites.length} {pendingInvites.length === 1 ? 'request' : 'requests'}
+                        </span>
+                    </div>
+
+                    <div className="space-y-3 mb-6">
+                        {pendingInvites.map((invite) => (
+                            <div
+                                key={invite.id}
+                                className="p-4 rounded-lg border border-cyan-500/30 bg-cyan-500/10 hover:bg-cyan-500/15 transition-all"
+                            >
+                                <div className="flex justify-between items-start">
+                                    <div className="flex-1">
+                                        <h3 className="font-bold text-cyan-300 mb-1">
+                                            {getOtherUser(invite)} sent you a collaboration request
+                                        </h3>
+                                        <p className="text-sm text-slate-300 mb-2">
+                                            They want to collaborate on a project with matching skills
+                                        </p>
+                                        <p className="text-xs text-slate-500">
+                                            {invite.createdAt
+                                                ? new Date(invite.createdAt).toLocaleDateString('en-US', {
+                                                    month: 'short',
+                                                    day: 'numeric',
+                                                    hour: '2-digit',
+                                                    minute: '2-digit'
+                                                })
+                                                : 'Unknown date'}
+                                        </p>
+                                    </div>
+
+                                    <div className="flex gap-2 ml-4 flex-shrink-0">
+                                        <Button
+                                            onClick={() => handleRespondToInvite(invite.id, true)}
+                                            disabled={respondingTo === invite.id}
+                                            className="bg-cyan-600 hover:bg-cyan-700 text-white text-sm h-9 px-4 font-semibold"
+                                        >
+                                            {respondingTo === invite.id ? '...' : '✓ Accept'}
+                                        </Button>
+                                        <Button
+                                            onClick={() => handleRespondToInvite(invite.id, false)}
+                                            disabled={respondingTo === invite.id}
+                                            className="bg-slate-700 hover:bg-slate-600 text-white text-sm h-9 px-4"
+                                        >
+                                            {respondingTo === invite.id ? '...' : '✕ Decline'}
+                                        </Button>
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+
+                    {/* Divider */}
+                    <hr className="border-slate-700 my-6" />
+                </div>
+            )}
 
             {/* Filter Tabs */}
             <div className="mb-6 flex gap-2">

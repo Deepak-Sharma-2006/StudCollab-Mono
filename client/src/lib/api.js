@@ -13,27 +13,21 @@ const api = axios.create({
 // REQUEST INTERCEPTOR (Token handling)
 api.interceptors.request.use(
     (config) => {
-        // Get Token from Storage
-        let token = localStorage.getItem('jwt_token') ||
-            localStorage.getItem('token');
+        // ✅ FIX: Simplified & reliable token retrieval
+        // Check both possible storage keys (jwt_token for new, token for legacy)
+        const token = localStorage.getItem('token') || localStorage.getItem('jwt_token');
 
-        // Fallback: Check user object
-        if (!token) {
-            try {
-                const user = JSON.parse(localStorage.getItem('user') || '{}');
-                token = user.token || user.jwt;
-            } catch (e) {
-                console.warn("Failed to parse user object", e);
-            }
-        }
-
-        // Sanitize token
+        // Attach Bearer token if available
         if (token) {
-            token = token.replace(/['"]+/g, '').trim();
-            config.headers.Authorization = `Bearer ${token}`;
+            // Clean token (remove quotes if present)
+            const cleanToken = token.replace(/['"]+/g, '').trim();
+            config.headers.Authorization = `Bearer ${cleanToken}`;
+            console.log('✅ Token attached to request:', config.url);
+        } else {
+            console.log('⚠️ No token found in localStorage');
         }
 
-        // Add userId header from stored user
+        // Add userId header from stored user (optional, for backend correlation)
         try {
             const user = JSON.parse(localStorage.getItem('user') || '{}');
             const userId = user.id || user.userId || user._id;
@@ -41,16 +35,12 @@ api.interceptors.request.use(
                 config.headers['X-User-Id'] = userId;
             }
         } catch {
-            // ignore
+            // Silently ignore parsing errors
         }
 
-        // Don't override Content-Type if FormData is being sent
-        // (let browser/axios auto-generate multipart/form-data with boundary)
+        // Handle FormData: Don't set Content-Type, let browser auto-detect
         if (config.data instanceof FormData) {
-            // CRITICAL: Delete Content-Type header for FormData
-            // Axios will then auto-detect FormData and set correct multipart/form-data with boundary
             delete config.headers['Content-Type'];
-            console.log('🔧 FormData detected - Content-Type header deleted for auto-detection');
         } else {
             config.headers['Content-Type'] = 'application/json';
         }
@@ -61,28 +51,17 @@ api.interceptors.request.use(
 );
 
 // RESPONSE INTERCEPTOR
-// ✅ CRITICAL: Handle 401 Unauthorized responses globally
+// ✅ CRITICAL: Handle 401 Unauthorized responses
+// Let components handle 401 gracefully - App.jsx will clear session on next request
 api.interceptors.response.use(
     (response) => response,
     (error) => {
         if (error.response && error.response.status === 401) {
-            // IMPORTANT: Don't redirect on /api/auth/me itself
-            // That's the session verification endpoint - let App.jsx handle the response
-            const isSessionCheckEndpoint = error.config?.url?.includes('/api/auth/me');
-
-            if (!isSessionCheckEndpoint) {
-                console.warn('❌ Unauthorized (401) - Clearing authentication and redirecting to login');
-
-                // Clear all auth-related localStorage
-                localStorage.removeItem('jwt_token');
-                localStorage.removeItem('token');
-                localStorage.removeItem('user');
-                localStorage.removeItem('studcollab_user');
-
-                // Force redirect to login page
-                // Use window.location to ensure a full page reload
-                window.location.href = '/login';
-            }
+            console.warn(`❌ 401 Unauthorized - API rejected request at: ${error.config?.url}`);
+            // Don't redirect here - let App.jsx session verification catch this
+            // and clear the user state on the next check
+        } else if (error.response && error.response.status === 403) {
+            console.warn(`❌ 403 Forbidden - Access denied to: ${error.config?.url}`);
         }
         return Promise.reject(error);
     }

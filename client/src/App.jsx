@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { BrowserRouter as Router, Routes, Route, useSearchParams, useNavigate, useLocation, Navigate } from 'react-router-dom';
 import { ThemeContext, VALID_THEMES, THEME_STORAGE_KEY } from '@/lib/theme.js';
+import api from '@/lib/api.js';
 
 // --- Main Components ---
 import EventsHub from '@/components/EventsHub.jsx';
@@ -131,19 +132,29 @@ const AuthenticatedApp = ({ user, setUser }) => {
 
 // --- 3. Protected Route Wrapper ---
 const ProtectedRoute = ({ user, isVerifying, isProfileComplete, children, loginProps }) => {
-  // CRITICAL: While verifying the token with the backend, show loading spinner
-  // This prevents rendering protected content with an invalid token
-  if (isVerifying) {
-    return <LoadingSpinner />;
+  const token = localStorage.getItem('token') || localStorage.getItem('jwt_token');
+
+  // 1. If still verifying AND we have a token, show loading
+  if (isVerifying && token) {
+    return (
+      <div className="h-screen bg-[#0a0a14] flex items-center justify-center text-cyan-500 font-black italic animate-pulse">
+        RESYNCING IDENTITY...
+      </div>
+    );
   }
 
-  // Once verified, check if user is authenticated and profile is complete
+  // 2. If verification complete and user is authenticated with complete profile
   if (user && isProfileComplete) {
     return children;
   }
 
-  // Not authenticated - redirect to login
-  return <LoginFlow {...loginProps} />;
+  // 3. If there is no token and no user, redirect to login
+  if (!token && !user) {
+    return <LoginFlow {...loginProps} />;
+  }
+
+  // 4. Default: show loading while we wait for verification
+  return <LoadingSpinner />;
 };
 
 // --- Main App Component ---
@@ -196,6 +207,33 @@ export default function App() {
       saveUser(finalUserData);
     }
   };
+
+  // ✅ CRITICAL: Setup response interceptor to handle 401s
+  // This runs AFTER axios is configured in api.js
+  useEffect(() => {
+    const interceptor = api.interceptors.response.use(
+      (response) => response,
+      (error) => {
+        if (error.response && error.response.status === 401) {
+          const endpoint = error.config?.url;
+          console.warn(`❌ 401 Unauthorized - clearing session: ${endpoint}`);
+          
+          // Clear auth data
+          localStorage.removeItem('token');
+          localStorage.removeItem('jwt_token');
+          localStorage.removeItem('user');
+          localStorage.removeItem('studcollab_user');
+          setUser(null);
+        }
+        return Promise.reject(error);
+      }
+    );
+
+    // Cleanup interceptor on unmount
+    return () => {
+      api.interceptors.response.eject(interceptor);
+    };
+  }, []);
 
   // ✅ CRITICAL FIX: Session Verification on App Mount
   // This endpoint validates the token with the backend BEFORE rendering protected routes

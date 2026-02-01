@@ -16,7 +16,10 @@ import java.util.function.Function;
 @Component
 public class JwtUtil {
 
-    private final Key key = Keys.secretKeyFor(SignatureAlgorithm.HS256);
+    // ✅ FIX: Use a fixed secret key that persists across server restarts
+    // This allows tokens signed during login to be validated after server restart
+    private static final String FIXED_SECRET = "your-super-secret-key-min-256-bits-long-for-hs256-algorithm-security-requirement";
+    private final Key key = Keys.hmacShaKeyFor(FIXED_SECRET.getBytes());
     private static final long JWT_TOKEN_VALIDITY = 5 * 60 * 60; // 5 hours
 
     public String getUsernameFromToken(String token) {
@@ -56,12 +59,12 @@ public class JwtUtil {
                 .setSubject(subject)
                 .setIssuedAt(new Date(System.currentTimeMillis()))
                 .setExpiration(new Date(System.currentTimeMillis() + JWT_TOKEN_VALIDITY * 1000))
-                .signWith(key)
+                .signWith(key, SignatureAlgorithm.HS256)
                 .compact();
     }
 
     public Boolean validateToken(String token, UserDetails userDetails) {
         final String username = getUsernameFromToken(token);
-        return (username.equals(userDetails.getUsername()) && !isTokenExpired(token));
+        return (username.equals(userDetails.getUsername())) && !isTokenExpired(token);
     }
 }
