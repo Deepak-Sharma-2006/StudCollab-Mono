@@ -125,6 +125,49 @@ public class CollabPodService {
                 .orElseThrow(() -> new RuntimeException("CollabPod not found: " + podId));
     }
 
+    /**
+     * ✅ NEW: Ensure pod name is never null - prevents frontend crashes on old data
+     * Fallback chain: pod.name → linked post title → "General Room"
+     */
+    private void ensurePodNameNotNull(CollabPod pod) {
+        if (pod == null)
+            return;
+
+        if (pod.getName() == null || pod.getName().trim().isEmpty()) {
+            // Try to get name from linked post
+            if (pod.getLinkedPostId() != null && !pod.getLinkedPostId().isEmpty()) {
+                try {
+                    var post = postRepository.findById(pod.getLinkedPostId()).orElse(null);
+                    if (post != null && post instanceof com.studencollabfin.server.model.SocialPost) {
+                        com.studencollabfin.server.model.SocialPost socialPost = (com.studencollabfin.server.model.SocialPost) post;
+                        String fallbackName = socialPost.getPodName() != null && !socialPost.getPodName().isEmpty()
+                                ? socialPost.getPodName()
+                                : (socialPost.getTitle() != null && !socialPost.getTitle().isEmpty()
+                                        ? socialPost.getTitle()
+                                        : "General Room");
+                        pod.setName(fallbackName);
+                        System.out.println("📝 Pod name recovered from linked post: " + fallbackName);
+                        return;
+                    }
+                } catch (Exception e) {
+                    System.err.println("⚠️ Could not fetch linked post for fallback: " + e.getMessage());
+                }
+            }
+            // Final fallback
+            pod.setName("General Room");
+            System.out.println("📝 Pod name set to default: General Room");
+        }
+    }
+
+    /**
+     * ✅ NEW: Ensure pod name is never null for a list of pods
+     */
+    private void ensurePodsNamesNotNull(List<CollabPod> pods) {
+        if (pods != null) {
+            pods.forEach(this::ensurePodNameNotNull);
+        }
+    }
+
     @SuppressWarnings("null")
     public CollabPod scheduleMeeting(String podId, String moderatorId, CollabPod.Meeting meeting) {
         CollabPod pod = collabPodRepository.findById((String) podId)
@@ -838,6 +881,12 @@ public class CollabPodService {
         }
         if (pod.getMemberNames() == null) {
             pod.setMemberNames(new java.util.ArrayList<>());
+        }
+
+        // ✅ GHOST MEMBER FIX: Verify user is not already in the list before adding
+        if (pod.getMemberIds().contains(userId)) {
+            System.out.println("  ✗ Duplicate join attempt detected - user already in memberIds");
+            return pod;
         }
 
         // Get user name and add both ID and name

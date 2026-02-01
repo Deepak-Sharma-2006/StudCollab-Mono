@@ -7,6 +7,7 @@ import com.studencollabfin.server.model.XPAction;
 import com.studencollabfin.server.service.PostService;
 import com.studencollabfin.server.service.UserService;
 import com.studencollabfin.server.service.GamificationService;
+import com.studencollabfin.server.repository.CollabPodRepository;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.aggregation.Aggregation;
 import org.springframework.data.mongodb.core.aggregation.AggregationResults;
@@ -30,6 +31,7 @@ public class PostController {
     private final GamificationService gamificationService;
     private final MongoTemplate mongoTemplate;
     private final UserService userService;
+    private final CollabPodRepository collabPodRepository;
 
     @PutMapping("/{postId}/like")
     public ResponseEntity<SocialPost> toggleLike(@PathVariable String postId, Authentication authentication,
@@ -389,8 +391,24 @@ public class PostController {
                 if (post instanceof com.studencollabfin.server.model.SocialPost) {
                     com.studencollabfin.server.model.SocialPost social = (com.studencollabfin.server.model.SocialPost) post;
                     String category = social.getCategory() != null ? social.getCategory() : "CAMPUS";
-                    if (social.getType() == ptype && ("CAMPUS".equals(category) || category == null))
-                        count++;
+                    if (social.getType() == ptype && ("CAMPUS".equals(category) || category == null)) {
+                        // ✅ NEW: For LOOKING_FOR posts, exclude TEAM_PODs
+                        // Only count COLLAB_POD type from the CollabPods collection
+                        if (ptype == com.studencollabfin.server.model.PostType.LOOKING_FOR) {
+                            // Verify this LOOKING_FOR post is linked to a COLLAB_POD (not a TEAM_POD)
+                            String linkedPodId = social.getLinkedPodId();
+                            if (linkedPodId != null) {
+                                com.studencollabfin.server.model.CollabPod pod = collabPodRepository
+                                        .findById(linkedPodId).orElse(null);
+                                if (pod != null && pod
+                                        .getPodSource() == com.studencollabfin.server.model.CollabPod.PodSource.COLLAB_POD) {
+                                    count++;
+                                }
+                            }
+                        } else {
+                            count++;
+                        }
+                    }
                 }
             }
             counts.put(ptype.name(), count);

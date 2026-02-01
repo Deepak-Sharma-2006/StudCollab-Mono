@@ -22,4 +22,6 @@ public class SocialPost extends Post {
     // Optional fields for linking to created pods or listing required skills
     private String linkedPodId;
     private List<String> requiredSkills = new ArrayList<>();
+    // ✅ NEW: Separate pod name for LOOKING_FOR posts (distinct from post title)
+    private String podName; // Only used for LOOKING_FOR posts - the name of the linked CollabPod
 }

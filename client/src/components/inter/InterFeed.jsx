@@ -54,6 +54,23 @@ const POST_TYPES = [
   { id: 'COLLAB', label: '🤝 Collab', icon: '🤝', description: 'Post a collaboration opportunity', color: 'text-green-400' },
 ];
 
+// ✅ NEW: Component to display pod name from database
+function PodNameDisplay({ linkedPodId, postPodName, getPodName }) {
+  const [podName, setPodName] = useState(postPodName);
+
+  useEffect(() => {
+    const fetchName = async () => {
+      if (linkedPodId) {
+        const name = await getPodName(linkedPodId);
+        setPodName(name || postPodName);
+      }
+    };
+    fetchName();
+  }, [linkedPodId, postPodName, getPodName]);
+
+  return <div className="font-semibold">{podName || "Pod"}</div>;
+}
+
 export default forwardRef(function InterFeed({ user }, ref) {
   const currentUserId = user?.id || "placeholder-user-id";
   const navigate = useNavigate();
@@ -63,13 +80,16 @@ export default forwardRef(function InterFeed({ user }, ref) {
   const [counts, setCounts] = useState(null);
   const [showCreatePost, setShowCreatePost] = useState(false);
   const [selectedPostType, setSelectedPostType] = useState(null);
-  const [newPost, setNewPost] = useState({ title: '', content: '' });
+  const [newPost, setNewPost] = useState({ title: '', content: '', podName: '' });
   const [pollOptions, setPollOptions] = useState(['', '']);
   const [skillTags, setSkillTags] = useState([]);
   const [newTag, setNewTag] = useState('');
   const [expandedComments, setExpandedComments] = useState({});
   const [joiningRoomId, setJoiningRoomId] = useState(null);
   const [membershipState, setMembershipState] = useState({});
+
+  // ✅ NEW: Cache for pod names to display correct pod name from database
+  const [podNameCache, setPodNameCache] = useState({});
 
   // Expose a method to parent components to trigger refresh (when rooms are deleted)
   useImperativeHandle(ref, () => ({
@@ -142,6 +162,32 @@ export default forwardRef(function InterFeed({ user }, ref) {
     });
   };
 
+  // ✅ NEW: Fetch pod name from database (not just post.podName)
+  const getPodName = async (podId) => {
+    if (!podId) return null;
+
+    // Return cached name if available
+    if (podNameCache[podId] !== undefined) {
+      return podNameCache[podId];
+    }
+
+    try {
+      const response = await api.get(`/pods/${podId}`);
+      const podName = response.data?.name || "Pod";
+
+      // Cache the result
+      setPodNameCache(prev => ({
+        ...prev,
+        [podId]: podName
+      }));
+
+      return podName;
+    } catch (error) {
+      console.error('Failed to fetch pod name:', error);
+      return "Pod";
+    }
+  };
+
   const filters = [
     { id: 'DISCUSSION', label: 'Discussion', count: (counts && counts.DISCUSSION) ? counts.DISCUSSION : posts.filter(p => p.type === 'DISCUSSION').length },
     { id: 'POLL', label: 'Polls', count: (counts && counts.POLL) ? counts.POLL : posts.filter(p => p.type === 'POLL').length },
@@ -152,6 +198,12 @@ export default forwardRef(function InterFeed({ user }, ref) {
   const handleCreatePost = async () => {
     if (!selectedPostType || !newPost.title.trim()) {
       alert('Please select a post type and fill in the title.');
+      return;
+    }
+
+    // ✅ NEW: Validate podName is mandatory for COLLAB posts
+    if (selectedPostType === 'COLLAB' && (!newPost.podName || !newPost.podName.trim())) {
+      alert('Please enter a Room Name for the collaboration room.');
       return;
     }
 
@@ -166,6 +218,11 @@ export default forwardRef(function InterFeed({ user }, ref) {
         likes: [],
         comments: []
       };
+
+      // ✅ NEW: Include podName for COLLAB posts
+      if (selectedPostType === 'COLLAB') {
+        payload.podName = newPost.podName;
+      }
 
       if (selectedPostType === 'POLL') {
         payload.pollOptions = pollOptions.filter(opt => opt.trim() !== '').map(opt => ({ text: opt, votes: [] }));
@@ -204,7 +261,7 @@ export default forwardRef(function InterFeed({ user }, ref) {
     } finally {
       setShowCreatePost(false);
       setSelectedPostType(null);
-      setNewPost({ title: '', content: '' });
+      setNewPost({ title: '', content: '', podName: '' });
       setPollOptions(['', '']);
       setSkillTags([]);
       setNewTag('');
@@ -351,6 +408,13 @@ export default forwardRef(function InterFeed({ user }, ref) {
                   ))}
                 </div>
               </div>
+              {/* ✅ NEW: Pod Name field for COLLAB posts */}
+              {selectedPostType === 'COLLAB' && (
+                <div>
+                  <label className="block font-semibold mb-2 text-slate-300">Room Name * <span className="text-xs text-slate-400">(appears in the collaboration room)</span></label>
+                  <Input placeholder="e.g., Web Dev Project, AI Research Team..." value={newPost.podName} onChange={(e) => setNewPost(p => ({ ...p, podName: e.target.value }))} className="bg-slate-800/50 border-slate-700 focus:ring-blue-500" />
+                </div>
+              )}
               <div>
                 <label className="block font-semibold mb-2 text-slate-300">Title *</label>
                 <Input placeholder="What's the title?" value={newPost.title} onChange={(e) => setNewPost(p => ({ ...p, title: e.target.value }))} className="bg-slate-800/50 border-slate-700 focus:ring-blue-500" />
@@ -445,7 +509,8 @@ export default forwardRef(function InterFeed({ user }, ref) {
                     <div className="flex items-center space-x-4">
                       <Avatar className="w-12 h-12 bg-gradient-to-br from-green-400 to-blue-500">🤝</Avatar>
                       <div>
-                        <div className="font-semibold">{post.title}</div>
+                        {/* ✅ Use PodNameDisplay to fetch and show actual pod name from database */}
+                        <PodNameDisplay linkedPodId={post.linkedPodId} postPodName={post.podName || post.title} getPodName={getPodName} />
                         <div className="text-sm text-slate-400">
                           {new Date(post.createdAt).toLocaleString()}
                         </div>
@@ -454,7 +519,7 @@ export default forwardRef(function InterFeed({ user }, ref) {
                     <Badge variant="outline" className={`border-green-600/50 bg-green-500/20 font-semibold text-green-400`}>🤝 Collaboration</Badge>
                   </div>
                   <div className="space-y-4">
-                    {post.content && <p className="text-slate-300">{post.content}</p>}
+                    {/* ✅ NEW: Don't show post content for COLLAB posts - pod card should only show pod name */}
 
                     {/* Display Tags/Skills */}
                     {(post.requiredSkills?.length > 0 || post.skillTags?.length > 0) && (

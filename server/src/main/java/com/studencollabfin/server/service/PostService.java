@@ -177,7 +177,14 @@ public class PostService {
                 try {
                     System.out.println("Creating CollabPod for LOOKING_FOR post: " + social.getId());
                     CollabPod pod = new CollabPod();
-                    pod.setName(social.getTitle() != null ? social.getTitle() : "Looking for collaborators");
+
+                    // ✅ ENFORCE: podName is mandatory (no fallback to title)
+                    if (social.getPodName() == null || social.getPodName().trim().isEmpty()) {
+                        throw new IllegalArgumentException("Pod Name is required for LOOKING_FOR posts");
+                    }
+                    pod.setName(social.getPodName());
+                    System.out.println("📌 Pod name set to: " + social.getPodName());
+
                     pod.setDescription(social.getContent());
                     pod.setMaxCapacity(6);
                     pod.setTopics(social.getRequiredSkills() != null ? social.getRequiredSkills()
@@ -185,6 +192,7 @@ public class PostService {
                     pod.setType(CollabPod.PodType.LOOKING_FOR);
                     pod.setStatus(CollabPod.PodStatus.ACTIVE);
                     pod.setScope(com.studencollabfin.server.model.PodScope.CAMPUS);
+                    pod.setPodSource(CollabPod.PodSource.COLLAB_POD); // ✅ NEW: Mark source as COLLAB_POD
                     pod.setLinkedPostId(social.getId()); // Set bi-directional link
                     System.out.println("📌 Pod linkedPostId set to: " + social.getId());
 
@@ -206,7 +214,14 @@ public class PostService {
                 try {
                     System.out.println("Creating CollabPod for COLLAB post: " + social.getId());
                     CollabPod pod = new CollabPod();
-                    pod.setName(social.getTitle() != null ? social.getTitle() : "Collab Room");
+
+                    // ✅ NEW: Use podName from request (mandatory for COLLAB posts)
+                    if (social.getPodName() == null || social.getPodName().trim().isEmpty()) {
+                        throw new IllegalArgumentException("Pod Name is required for COLLAB posts");
+                    }
+                    pod.setName(social.getPodName());
+                    System.out.println("📌 Pod name set to: " + social.getPodName());
+
                     pod.setDescription(social.getContent());
                     pod.setMaxCapacity(10); // Global rooms can accommodate more
                     pod.setTopics(social.getRequiredSkills() != null ? social.getRequiredSkills()
@@ -215,6 +230,7 @@ public class PostService {
                                                            // DISCUSSION)
                     pod.setStatus(CollabPod.PodStatus.ACTIVE);
                     pod.setScope(com.studencollabfin.server.model.PodScope.GLOBAL);
+                    pod.setPodSource(CollabPod.PodSource.COLLAB_ROOM); // ✅ NEW: Mark source as COLLAB_ROOM
                     pod.setLinkedPostId(social.getId()); // Set bi-directional link
                     System.out.println("Pod created with scope=GLOBAL, type=COLLAB");
 
@@ -231,33 +247,20 @@ public class PostService {
         } else if (savedPost instanceof TeamFindingPost) {
             TeamFindingPost teamPost = (TeamFindingPost) savedPost;
             try {
-                System.out.println("Creating CollabPod for TeamFindingPost: " + teamPost.getId());
-                CollabPod pod = new CollabPod();
-                // Use title if available, otherwise fall back to content
-                pod.setName(teamPost.getTitle() != null ? teamPost.getTitle()
-                        : (teamPost.getContent() != null ? teamPost.getContent() : "Looking for collaborators"));
-                pod.setDescription(teamPost.getContent());
-                pod.setMaxCapacity(6);
-                pod.setTopics(teamPost.getRequiredSkills() != null ? teamPost.getRequiredSkills()
-                        : new java.util.ArrayList<>());
-                pod.setType(CollabPod.PodType.PROJECT_TEAM);
-                pod.setStatus(CollabPod.PodStatus.ACTIVE);
-                pod.setScope(com.studencollabfin.server.model.PodScope.CAMPUS);
-                pod.setLinkedPostId(teamPost.getId()); // Set bi-directional link
-                System.out.println("Pod created with scope=CAMPUS, type=PROJECT_TEAM");
-
-                CollabPod createdPod = collabPodService.createPod(authorId, pod);
-                System.out.println("CollabPod successfully created with ID: " + createdPod.getId());
-                teamPost.setLinkedPodId(createdPod.getId());
-                savedPost = postRepository.save(teamPost); // Save the updated post and return it
-                System.out.println("TeamFindingPost saved with linkedPodId: " + createdPod.getId());
+                // ✅ FIX: DO NOT create CollabPod immediately for TeamFindingPost
+                // The Team Pod (CollabPod with type=TEAM) will be created ONLY when:
+                // 1. The post expires (PostState = EXPIRED)
+                // 2. OR the post is manually finalized
+                // This is handled by generateTeamPod() which will be called by a scheduled task
+                System.out.println("✅ TeamFindingPost created: " + teamPost.getId() +
+                        " - Pod creation deferred until post expires or is manually finalized");
 
                 // ✅ NEW: Refresh event stats when team post is created
                 if (teamPost.getEventId() != null && !teamPost.getEventId().isEmpty()) {
                     eventService.refreshEventStats(teamPost.getEventId());
                 }
             } catch (Exception ex) {
-                System.err.println("Failed to create CollabPod during team post creation: " + ex.getMessage());
+                System.err.println("Failed to process TeamFindingPost creation: " + ex.getMessage());
                 ex.printStackTrace();
             }
         }

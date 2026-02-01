@@ -132,6 +132,7 @@ export default function CollabPodPage({ user, podId: propPodId, onBack }) {
 
     // WebSocket for live chat
     const handleIncoming = useCallback((payload) => {
+        console.log('📨 handleIncoming called with payload:', payload);
         const saved = payload.comment || payload.message || payload;
 
         // Normalize incoming message to ensure consistent field names
@@ -144,13 +145,22 @@ export default function CollabPodPage({ user, podId: propPodId, onBack }) {
             senderName: saved.senderName || saved.authorName || 'Unknown'
         };
 
+        console.log('✨ Normalized message:', {
+            id: normalizedMsg.id,
+            content: normalizedMsg.content,
+            senderId: normalizedMsg.senderId,
+            senderName: normalizedMsg.senderName
+        });
+
         // Deduplicate: only add if message ID doesn't already exist
         // This prevents duplicate messages when optimistic update + WebSocket echo occur
         setMessages(prev => {
             if (normalizedMsg.id && prev.some(m => m.id === normalizedMsg.id)) {
+                console.log('🔄 Message already exists (deduplication), updating:', normalizedMsg.id);
                 // Message already exists, just update it if needed
                 return prev.map(m => m.id === normalizedMsg.id ? { ...m, ...normalizedMsg } : m);
             }
+            console.log('➕ New message added:', normalizedMsg.id);
             // New message, add it
             return [...prev, normalizedMsg];
         });
@@ -287,12 +297,24 @@ export default function CollabPodPage({ user, podId: propPodId, onBack }) {
                 timestamp: new Date().toISOString()
             };
 
+            console.log('📮 Creating message payload:', {
+                tempId: tempId,
+                content: messagePayload.content,
+                senderId: messagePayload.senderId,
+                senderName: messagePayload.senderName
+            });
+
             // IMPORTANT: Add message to local state immediately so user sees it
             // Use temporary ID that will be replaced by real ID when WebSocket returns
-            setMessages(prev => [...prev, messagePayload]);
+            setMessages(prev => {
+                console.log('➕ Adding optimistic message to state. Total messages before:', prev.length);
+                return [...prev, messagePayload];
+            });
 
             // Send WebSocket message
+            console.log('🚀 Sending via WebSocket...');
             podWs.send(messagePayload);
+            console.log('✅ WebSocket send() called');
 
             // Reset state
             setAttachment(null);
@@ -502,7 +524,7 @@ export default function CollabPodPage({ user, podId: propPodId, onBack }) {
                                 {pod?.scope === 'GLOBAL' ? '🌍 Global Room' : '🏛️ Campus Pod'}
                             </span>
                         </div>
-                        <span className="font-bold text-lg text-white leading-tight truncate">{pod.title}</span>
+                        <span className="font-bold text-lg text-white leading-tight truncate">{pod.name}</span>
                         <span className="text-xs text-slate-400 font-medium">{memberNames}</span>
                     </div>
                 </div>

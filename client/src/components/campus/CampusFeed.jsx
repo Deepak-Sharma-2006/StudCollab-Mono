@@ -49,14 +49,81 @@ const RESTRICTED_POST_TYPES = [
   { id: 'LOOKING_FOR', label: '🟣 Looking For...', icon: '👀', color: 'text-violet-400' },
 ];
 
+// ✅ NEW: Component to render conditional button for LOOKING_FOR posts
+// Shows "Open Pod" if owner/member, "Join" otherwise
+function LookingForButton({ post, currentUserId, checkMembership, onJoin, onNavigate }) {
+  const [membership, setMembership] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchMembership = async () => {
+      if (post.linkedPodId) {
+        const result = await checkMembership(post.linkedPodId);
+        setMembership(result);
+      }
+      setLoading(false);
+    };
+    fetchMembership();
+  }, [post.linkedPodId, currentUserId, checkMembership]);
+
+  const handleClick = () => {
+    if (membership?.isOwner || membership?.isAdmin || membership?.isMember) {
+      // Open Pod
+      onNavigate(`/campus/collab-pods/${post.linkedPodId}`);
+    } else {
+      // Join Pod
+      onJoin(post);
+    }
+  };
+
+  if (loading) {
+    return <Button disabled className="bg-slate-600 text-white">Loading...</Button>;
+  }
+
+  const isOwnerOrMember = membership?.isOwner || membership?.isAdmin || membership?.isMember;
+  const buttonText = isOwnerOrMember ? '🔓 Open Pod' : '✨ Join';
+  const buttonClass = isOwnerOrMember
+    ? 'bg-gradient-to-r from-blue-600 to-cyan-600 text-white'
+    : 'bg-gradient-to-r from-green-600 to-teal-600 text-white';
+
+  return (
+    <Button onClick={handleClick} className={buttonClass}>
+      {buttonText}
+    </Button>
+  );
+}
+
+// ✅ NEW: Component to display pod name from database
+function PodNameDisplay({ linkedPodId, postPodName, getPodName }) {
+  const [podName, setPodName] = useState(postPodName);
+
+  useEffect(() => {
+    const fetchName = async () => {
+      if (linkedPodId) {
+        const name = await getPodName(linkedPodId);
+        setPodName(name || postPodName);
+      }
+    };
+    fetchName();
+  }, [linkedPodId, postPodName, getPodName]);
+
+  return <h3 className="font-semibold text-xl">{podName || "Pod"}</h3>;
+}
+
 export default forwardRef(function CampusFeed({ user, initialFilter = 'ASK_HELP' }, ref) {
-  // Simulate current user ID (replace with real user ID in production)
-  const currentUserId = "placeholder-user-id";
+  // ✅ FIX: Get current user ID from the user prop instead of placeholder
+  const currentUserId = user?.id || user?._id || "placeholder-user-id";
   const { theme } = useTheme();
   const [activeFilter, setActiveFilter] = useState(initialFilter);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const { posts, setPosts, loading, error } = usePostsWithRefresh(activeFilter, refreshTrigger);
   const [counts, setCounts] = useState(null);
+
+  // ✅ NEW: Cache for pod membership info to avoid multiple API calls
+  const [podMembershipCache, setPodMembershipCache] = useState({});
+
+  // ✅ NEW: Cache for pod names to display correct pod name from database
+  const [podNameCache, setPodNameCache] = useState({});
 
   // Update filter when initialFilter prop changes
   useEffect(() => {
@@ -166,7 +233,69 @@ export default forwardRef(function CampusFeed({ user, initialFilter = 'ASK_HELP'
     }
   };
 
-  const [newPost, setNewPost] = useState({ title: '', content: '' });
+  // ✅ NEW: Helper to check if user is owner or member of a pod
+  const checkPodMembership = async (podId) => {
+    // Check cache first
+    if (podMembershipCache[podId] !== undefined) {
+      return podMembershipCache[podId];
+    }
+
+    try {
+      const podResponse = await api.get(`/pods/${podId}`);
+      const pod = podResponse.data;
+
+      const isOwner = pod.ownerId === currentUserId || pod.creatorId === currentUserId;
+      const isAdmin = pod.adminIds && pod.adminIds.includes(currentUserId);
+      const isMember = pod.memberIds && pod.memberIds.includes(currentUserId);
+
+      const membership = {
+        isOwner,
+        isAdmin,
+        isMember,
+        canJoin: !isOwner && !isAdmin && !isMember
+      };
+
+      // Cache the result
+      setPodMembershipCache(prev => ({
+        ...prev,
+        [podId]: membership
+      }));
+
+      return membership;
+    } catch (error) {
+      console.error('Failed to check pod membership:', error);
+      return { isOwner: false, isAdmin: false, isMember: false, canJoin: true };
+    }
+  };
+
+  // ✅ NEW: Fetch pod name from database (not just post.podName)
+  const getPodName = async (podId) => {
+    if (!podId) return null;
+
+    // Return cached name if available
+    if (podNameCache[podId] !== undefined) {
+      return podNameCache[podId];
+    }
+
+    try {
+      const response = await api.get(`/pods/${podId}`);
+      const podName = response.data?.name || "Pod";
+
+      // Cache the result
+      setPodNameCache(prev => ({
+        ...prev,
+        [podId]: podName
+      }));
+
+      return podName;
+    } catch (error) {
+      console.error('Failed to fetch pod name:', error);
+      return "Pod";
+    }
+  };
+
+  // ✅ NEW: Add podName field for LOOKING_FOR posts
+  const [newPost, setNewPost] = useState({ title: '', content: '', podName: '' });
   const [pollOptions, setPollOptions] = useState(['', '']);
 
   // Form helper functions for polls
@@ -207,6 +336,12 @@ export default forwardRef(function CampusFeed({ user, initialFilter = 'ASK_HELP'
       return;
     }
 
+    // ✅ NEW: Validate podName for LOOKING_FOR posts
+    if (selectedPostType === 'LOOKING_FOR' && !newPost.podName.trim()) {
+      alert('Please enter a Pod Name for the collaboration room.');
+      return;
+    }
+
     try {
       // 1. MAP UI LABELS TO BACKEND ENUMS
       // The backend expects UPPERCASE_UNDERSCORE format
@@ -238,6 +373,11 @@ export default forwardRef(function CampusFeed({ user, initialFilter = 'ASK_HELP'
         createdAt: new Date().toISOString()
       };
 
+      // ✅ NEW: Add podName for LOOKING_FOR posts
+      if (selectedPostType === 'LOOKING_FOR') {
+        cleanPayload.podName = newPost.podName || newPost.title; // Default to title if not provided
+      }
+
       // Add poll options if this is a poll
       if (selectedPostType === 'POLL') {
         cleanPayload.pollOptions = pollOptions.filter(opt => opt.trim() !== '').map(opt => ({ text: opt }));
@@ -260,7 +400,8 @@ export default forwardRef(function CampusFeed({ user, initialFilter = 'ASK_HELP'
       // Success: Close modal, reset form, and refresh feed
       setShowCreatePost(false);
       setSelectedPostType(null);
-      setNewPost({ title: '', content: '' });
+      // ✅ Reset form including podName
+      setNewPost({ title: '', content: '', podName: '' });
       setPollOptions(['', '']);
 
       // Auto-switch to the tab matching the newly created post type
@@ -392,8 +533,14 @@ export default forwardRef(function CampusFeed({ user, initialFilter = 'ASK_HELP'
                   <Badge variant="outline" className={`border-slate-600 bg-slate-700/50 font-semibold ${typeInfo.color || ''}`}>{typeInfo.icon} {typeInfo.label || 'Post'}</Badge>
                 </div>
                 <div className="space-y-4">
-                  <h3 className="font-semibold text-xl">{post.title}</h3>
-                  {post.content && <p className="text-slate-300">{post.content}</p>}
+                  {post.postType === 'LOOKING_FOR' ? (
+                    // ✅ Use PodNameDisplay to fetch and show actual pod name from database
+                    <PodNameDisplay linkedPodId={post.linkedPodId} postPodName={post.podName || post.title} getPodName={getPodName} />
+                  ) : (
+                    <h3 className="font-semibold text-xl">{post.title}</h3>
+                  )}
+                  {/* ✅ NEW: Don't show post content for LOOKING_FOR - pod card should only show pod name */}
+                  {post.postType !== 'LOOKING_FOR' && post.content && <p className="text-slate-300">{post.content}</p>}
 
                   {/* Poll Rendering Logic */}
                   {post.postType === 'POLL' && post.pollOptions && Array.isArray(post.pollOptions) && post.pollOptions.length > 0 && (
@@ -440,7 +587,7 @@ export default forwardRef(function CampusFeed({ user, initialFilter = 'ASK_HELP'
                   )}
 
                   {post.postType === 'LOOKING_FOR' ? (
-                    <Button onClick={() => handleJoinPod(post)} className="bg-gradient-to-r from-green-600 to-teal-600 text-white">Join</Button>
+                    <LookingForButton post={post} currentUserId={currentUserId} checkMembership={checkPodMembership} onJoin={handleJoinPod} onNavigate={navigate} />
                   ) : post.postType === 'POLL' ? (
                     <div />
                   ) : (
@@ -481,6 +628,15 @@ export default forwardRef(function CampusFeed({ user, initialFilter = 'ASK_HELP'
                 <label className="block font-semibold mb-2 text-slate-300">Title *</label>
                 <Input placeholder="What's the title?" value={newPost.title} onChange={(e) => setNewPost(p => ({ ...p, title: e.target.value }))} className="bg-slate-800/50 border-slate-700 focus:ring-blue-500" />
               </div>
+
+              {/* ✅ NEW: Pod Name field for LOOKING_FOR posts */}
+              {selectedPostType === 'LOOKING_FOR' && (
+                <div>
+                  <label className="block font-semibold mb-2 text-slate-300">Pod Name * <span className="text-xs text-slate-400">(appears in the collaboration room)</span></label>
+                  <Input placeholder="e.g., React Study Group, AI Project Team..." value={newPost.podName} onChange={(e) => setNewPost(p => ({ ...p, podName: e.target.value }))} className="bg-slate-800/50 border-slate-700 focus:ring-blue-500" />
+                </div>
+              )}
+
               <div>
                 <label className="block font-semibold mb-2 text-slate-300">Content / Description</label>
                 <Textarea placeholder="What are the details?" value={newPost.content} onChange={(e) => setNewPost(p => ({ ...p, content: e.target.value }))} className="bg-slate-800/50 border-slate-700 focus:ring-blue-500" />

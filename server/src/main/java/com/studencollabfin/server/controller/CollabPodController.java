@@ -90,6 +90,15 @@ public class CollabPodController {
                 pods = collabPodRepository.findAll();
             }
 
+            // ✅ NEW: Ensure all pod names are never null (prevents frontend crashes)
+            if (pods != null) {
+                pods.forEach(pod -> {
+                    if (pod.getName() == null || pod.getName().trim().isEmpty()) {
+                        pod.setName(pod.getName() != null ? pod.getName() : "General Room");
+                    }
+                });
+            }
+
             return ResponseEntity.ok(pods != null ? pods : new java.util.ArrayList<>());
         } catch (Exception e) {
             e.printStackTrace();
@@ -141,6 +150,13 @@ public class CollabPodController {
             System.out.println("✅ Campus pods filtered for college: " + userCollege + ", count: "
                     + lookingForPods.size());
 
+            // ✅ NEW: Ensure all pod names are never null
+            lookingForPods.forEach(pod -> {
+                if (pod.getName() == null || pod.getName().trim().isEmpty()) {
+                    pod.setName("General Room");
+                }
+            });
+
             return ResponseEntity.ok(lookingForPods);
         } catch (Exception e) {
             e.printStackTrace();
@@ -158,6 +174,16 @@ public class CollabPodController {
     public ResponseEntity<List<CollabPod>> getGlobalPods() {
         try {
             List<CollabPod> pods = collabPodRepository.findByScope(PodScope.GLOBAL);
+
+            // ✅ NEW: Ensure all pod names are never null
+            if (pods != null) {
+                pods.forEach(pod -> {
+                    if (pod.getName() == null || pod.getName().trim().isEmpty()) {
+                        pod.setName("General Room");
+                    }
+                });
+            }
+
             return ResponseEntity.ok(pods != null ? pods : new java.util.ArrayList<>());
         } catch (Exception e) {
             e.printStackTrace();
@@ -178,6 +204,14 @@ public class CollabPodController {
                             (pod.getStatus().toString().equals("LOOKING_FOR_MEMBERS") ||
                                     pod.getStatus().toString().equals("ACTIVE")))
                     .toList();
+
+            // ✅ NEW: Ensure all pod names are never null
+            filtered.forEach(pod -> {
+                if (pod.getName() == null || pod.getName().trim().isEmpty()) {
+                    pod.setName("General Room");
+                }
+            });
+
             return ResponseEntity.ok(filtered);
         } catch (Exception e) {
             e.printStackTrace(); // This prints the error to the terminal
@@ -200,10 +234,20 @@ public class CollabPodController {
     @GetMapping("/{id}")
     public ResponseEntity<CollabPod> getPodById(@PathVariable String id) {
         @SuppressWarnings("null")
-        ResponseEntity<CollabPod> response = collabPodRepository.findById(id)
-                .map(ResponseEntity::ok)
-                .orElse(ResponseEntity.status(HttpStatus.NOT_FOUND).build());
-        return response;
+        var podOptional = collabPodRepository.findById(id);
+
+        if (!podOptional.isPresent()) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+        }
+
+        CollabPod pod = podOptional.get();
+
+        // ✅ NEW: Ensure pod name is never null (prevents frontend crashes on old data)
+        if (pod.getName() == null || pod.getName().trim().isEmpty()) {
+            pod.setName("General Room");
+        }
+
+        return ResponseEntity.ok(pod);
     }
 
     @GetMapping("/{id}/messages")

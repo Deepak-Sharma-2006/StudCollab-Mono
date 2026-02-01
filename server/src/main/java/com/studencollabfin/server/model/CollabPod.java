@@ -37,6 +37,7 @@ public class CollabPod {
     private PodScope scope; // CAMPUS or GLOBAL
     private String college; // Denormalized college name for campus isolation (e.g., "IIT", "Sinhgad",
                             // "GLOBAL")
+    private PodSource podSource; // ✅ NEW: Origin of pod (TEAM_POD, COLLAB_POD, COLLAB_ROOM)
 
     // ✅ NEW: Buddy Beacon Fields - Link to Event & Track Origin
     private String eventId; // Link to the Hackathon/Event (null for general pods, set for event-based
@@ -70,6 +71,13 @@ public class CollabPod {
         LOOKING_FOR,
         COLLAB, // Global collaboration rooms created from COLLAB posts
         TEAM // ✅ NEW: Event-based team pods (created from TeamFindingPost expiry)
+    }
+
+    // ✅ NEW: Pod source/origin to distinguish pod types for filtering
+    public enum PodSource {
+        TEAM_POD, // Created when TeamFindingPost expires (team formation)
+        COLLAB_POD, // Created from LOOKING_FOR posts in Campus Hub
+        COLLAB_ROOM // Created from COLLAB posts in Inter Hub (global)
     }
 
     public enum PodStatus {

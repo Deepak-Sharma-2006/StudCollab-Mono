@@ -563,4 +563,120 @@ public class BuddyBeaconService {
         }
         throw new RuntimeException("Post not found");
     }
+
+    /**
+     * ✅ NEW: Generate Team Pod from an expired TeamFindingPost
+     * 
+     * This method should be called when a TeamFindingPost expires or is manually
+     * finalized.
+     * It will:
+     * 1. Fetch the TeamFindingPost
+     * 2. Fetch all accepted applicants (currentTeamMembers)
+     * 3. Create a CollabPod with type=TEAM and podSource=TEAM_POD
+     * 4. Add all accepted members to the pod
+     * 5. Link the pod back to the post
+     * 
+     * @param postId - ID of the TeamFindingPost
+     * @return CollabPod - the newly created team pod
+     */
+    public CollabPod generateTeamPod(String postId) {
+        System.out.println("🎯 generateTeamPod: Creating Team Pod for expired/finalized post: " + postId);
+
+        // Step 1: Fetch the TeamFindingPost
+        Optional<Post> postOpt = postRepository.findById(postId);
+        if (!postOpt.isPresent() || !(postOpt.get() instanceof TeamFindingPost)) {
+            throw new RuntimeException("TeamFindingPost not found: " + postId);
+        }
+
+        TeamFindingPost teamPost = (TeamFindingPost) postOpt.get();
+        System.out.println("📋 Found TeamFindingPost: " + teamPost.getTitle());
+
+        // Step 2: Verify the post is expired or should be finalized
+        PostState state = teamPost.computePostState();
+        if (state != PostState.EXPIRED && state != PostState.CLOSED) {
+            System.out.println("⚠️ Post is still " + state + ", cannot generate team pod yet");
+            throw new RuntimeException(
+                    "Post must be EXPIRED or CLOSED before generating team pod. Current state: " + state);
+        }
+
+        // Step 3: Check if pod already exists (idempotent operation)
+        if (teamPost.getLinkedPodId() != null) {
+            Optional<com.studencollabfin.server.model.CollabPod> existingPod = collabPodRepository
+                    .findById(teamPost.getLinkedPodId());
+            if (existingPod.isPresent()) {
+                System.out.println("✅ Team Pod already exists: " + teamPost.getLinkedPodId());
+                return existingPod.get();
+            }
+        }
+
+        // Step 4: Get accepted applicants (current team members)
+        List<String> teamMembers = teamPost.getCurrentTeamMembers();
+        if (teamMembers == null || teamMembers.isEmpty()) {
+            System.out.println("⚠️ No accepted members for this post");
+            teamMembers = new ArrayList<>();
+        }
+        System.out.println("👥 Team members count: " + teamMembers.size());
+
+        // Step 5: Create the Team Pod
+        com.studencollabfin.server.model.CollabPod teamPod = new com.studencollabfin.server.model.CollabPod();
+        teamPod.setName(teamPost.getTitle() != null ? teamPost.getTitle() : "Team Pod");
+        teamPod.setDescription(teamPost.getContent());
+        teamPod.setOwnerId(teamPost.getAuthorId()); // Pod owner is the post author
+
+        // Set owner name
+        Optional<User> authorOpt = userRepository.findById(teamPost.getAuthorId());
+        if (authorOpt.isPresent()) {
+            teamPod.setOwnerName(authorOpt.get().getFullName());
+        }
+
+        teamPod.setType(com.studencollabfin.server.model.CollabPod.PodType.TEAM);
+        teamPod.setPodSource(com.studencollabfin.server.model.CollabPod.PodSource.TEAM_POD); // ✅ Mark source as
+                                                                                             // TEAM_POD
+        teamPod.setStatus(com.studencollabfin.server.model.CollabPod.PodStatus.ACTIVE);
+        teamPod.setScope(com.studencollabfin.server.model.PodScope.CAMPUS);
+        teamPod.setMaxCapacity(teamPost.getMaxTeamSize());
+        teamPod.setTopics(teamPost.getRequiredSkills() != null ? teamPost.getRequiredSkills() : new ArrayList<>());
+        teamPod.setEventId(teamPost.getEventId()); // Link to the event
+        teamPod.setLinkedPostId(postId); // Bi-directional link
+        teamPod.setCreatedAt(java.time.LocalDateTime.now());
+        teamPod.setLastActive(java.time.LocalDateTime.now());
+
+        // Initialize member lists
+        if (teamPod.getMemberIds() == null) {
+            teamPod.setMemberIds(new ArrayList<>());
+        }
+        if (teamPod.getMemberNames() == null) {
+            teamPod.setMemberNames(new ArrayList<>());
+        }
+
+        // Add all team members (except the owner)
+        for (String memberId : teamMembers) {
+            if (!memberId.equals(teamPost.getAuthorId())) {
+                teamPod.getMemberIds().add(memberId);
+
+                // Add member names for display
+                Optional<User> memberOpt = userRepository.findById(memberId);
+                if (memberOpt.isPresent()) {
+                    teamPod.getMemberNames().add(memberOpt.get().getFullName());
+                }
+            }
+        }
+
+        // Set college for campus isolation
+        if (teamPost.getCollege() != null) {
+            teamPod.setCollege(teamPost.getCollege());
+        }
+
+        // Step 6: Save the pod
+        com.studencollabfin.server.model.CollabPod savedPod = collabPodRepository.save(teamPod);
+        System.out.println("✅ Team Pod created successfully: " + savedPod.getId() +
+                " with " + savedPod.getMemberIds().size() + " members");
+
+        // Step 7: Update the post with the pod ID
+        teamPost.setLinkedPodId(savedPod.getId());
+        postRepository.save(teamPost);
+        System.out.println("✅ TeamFindingPost updated with linkedPodId: " + savedPod.getId());
+
+        return savedPod;
+    }
 }
