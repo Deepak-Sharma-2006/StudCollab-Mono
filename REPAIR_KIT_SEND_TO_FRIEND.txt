@@ -1,0 +1,138 @@
+🔧 REPAIR KIT: Code Snippets to Fix Your Logic Gaps
+========================================================
+
+---
+
+FIX #1: The 'Unknown User' Problem
+File: PostController.java
+Location: Lines 59-75 (in addAuthorDetailsToPost() method)
+
+Paste this method:
+
+private void addAuthorDetailsToPost(java.util.Map<String, Object> richPost, String authorId) {
+    try {
+        com.studencollabfin.server.model.User user = userService.getUserById(authorId);
+        if (user != null) {
+            richPost.put("authorName", user.getFullName() != null ? user.getFullName() : "Unknown User");
+            richPost.put("authorCollege", user.getCollegeName() != null ? user.getCollegeName() : "");
+            richPost.put("authorYear", user.getYearOfStudy() != null ? user.getYearOfStudy() : "");
+        } else {
+            richPost.put("authorName", "Unknown User");
+            richPost.put("authorCollege", "");
+            richPost.put("authorYear", "");
+        }
+    } catch (Exception e) {
+        richPost.put("authorName", "Unknown User");
+        richPost.put("authorCollege", "");
+        richPost.put("authorYear", "");
+    }
+}
+
+Why: Fetches user details by authorId and maps to authorName, authorCollege, authorYear. Falls back gracefully for nulls.
+
+---
+
+FIX #2: The 'Pod Creation' Chain
+File: PostService.java
+Location: Lines 174-235 (in createPost() method)
+Action: Paste AFTER postRepository.save(post) call
+
+// LOOKING_FOR posts:
+if (social.getType() == com.studencollabfin.server.model.PostType.LOOKING_FOR) {
+    try {
+        System.out.println("Creating CollabPod for LOOKING_FOR post: " + social.getId());
+        CollabPod pod = new CollabPod();
+        String podDisplayName = social.getPodName() != null && !social.getPodName().isEmpty()
+                ? social.getPodName()
+                : (social.getTitle() != null ? social.getTitle() : "Looking for collaborators");
+        pod.setName(podDisplayName);
+        pod.setDescription(social.getContent());
+        pod.setMaxCapacity(6);
+        pod.setTopics(social.getRequiredSkills() != null ? social.getRequiredSkills()
+                : new java.util.ArrayList<>());
+        pod.setType(CollabPod.PodType.LOOKING_FOR);
+        pod.setStatus(CollabPod.PodStatus.ACTIVE);
+        pod.setScope(com.studencollabfin.server.model.PodScope.CAMPUS);
+        pod.setLinkedPostId(social.getId());
+        pod.setPodSource(CollabPod.PodSource.COLLAB_POD);
+        System.out.println("📌 Pod linkedPostId set to: " + social.getId());
+
+        CollabPod createdPod = collabPodService.createPod(authorId, pod);
+        System.out.println("CollabPod successfully created with ID: " + createdPod.getId());
+
+        social.setLinkedPodId(createdPod.getId());
+        savedPost = postRepository.save(social);
+        System.out.println("Post saved with linkedPodId: " + createdPod.getId());
+    } catch (Exception ex) {
+        System.err.println("Failed to create CollabPod during post creation: " + ex.getMessage());
+        ex.printStackTrace();
+    }
+}
+
+// COLLAB posts:
+else if (social.getType() == com.studencollabfin.server.model.PostType.COLLAB) {
+    try {
+        System.out.println("Creating CollabPod for COLLAB post: " + social.getId());
+        CollabPod pod = new CollabPod();
+        String podDisplayName = social.getPodName() != null && !social.getPodName().isEmpty()
+                ? social.getPodName()
+                : (social.getTitle() != null ? social.getTitle() : "Collab Room");
+        pod.setName(podDisplayName);
+        pod.setDescription(social.getContent());
+        pod.setMaxCapacity(10);
+        pod.setTopics(social.getRequiredSkills() != null ? social.getRequiredSkills()
+                : new java.util.ArrayList<>());
+        pod.setType(CollabPod.PodType.COLLAB);
+        pod.setStatus(CollabPod.PodStatus.ACTIVE);
+        pod.setScope(com.studencollabfin.server.model.PodScope.GLOBAL);
+        pod.setLinkedPostId(social.getId());
+        pod.setPodSource(CollabPod.PodSource.COLLAB_ROOM);
+        System.out.println("Pod created with scope=GLOBAL, type=COLLAB, podSource=COLLAB_ROOM");
+
+        CollabPod createdPod = collabPodService.createPod(authorId, pod);
+        System.out.println("CollabPod successfully created with ID: " + createdPod.getId());
+        social.setLinkedPodId(createdPod.getId());
+        savedPost = postRepository.save(social);
+        System.out.println("Post saved with linkedPodId: " + createdPod.getId());
+    } catch (Exception ex) {
+        System.err.println("Failed to create CollabPod during post creation: " + ex.getMessage());
+        ex.printStackTrace();
+    }
+}
+
+Why: Creates pod AFTER post is saved. Uses podName from frontend with fallbacks. Sets correct scope and podSource. Links pod to post.
+
+---
+
+FIX #3: The 'Missing Room Name' Input
+Files: 
+  A) InterFeed.jsx - Lines 372-378
+  B) CampusFeed.jsx - Lines 506-511
+Action: Paste after Title input in Create Post Modal
+
+FOR InterFeed.jsx (COLLAB posts):
+{selectedPostType === 'COLLAB' && (
+  <div>
+    <label className="block font-semibold mb-2 text-slate-300">Pod Name * <span className="text-xs text-slate-400">(Name for the collaboration room)</span></label>
+    <Input placeholder="e.g., 'AI Research Collab'" value={newPost.podName} onChange={(e) => setNewPost(p => ({ ...p, podName: e.target.value }))} className="bg-slate-800/50 border-slate-700 focus:ring-blue-500" />
+  </div>
+)}
+
+FOR CampusFeed.jsx (LOOKING_FOR posts):
+{selectedPostType === 'LOOKING_FOR' && (
+  <div>
+    <label className="block font-semibold mb-2 text-slate-300">Pod Name * <span className="text-xs text-slate-400">(The name for the collaboration pod)</span></label>
+    <Input placeholder="e.g., 'UI/UX Design Team'" value={newPost.podName} onChange={(e) => setNewPost(p => ({ ...p, podName: e.target.value }))} className="bg-slate-800/50 border-slate-700 focus:ring-blue-500" />
+  </div>
+)}
+
+Why: Conditionally shows input when user selects COLLAB or LOOKING_FOR. Stores in newPost.podName state. Gets included in API payload.
+
+---
+
+SUMMARY:
+1. Fix Unknown User → Fetch and map user details to authorName, authorCollege, authorYear
+2. Fix Pod Creation → Create pod after post is saved, link them bidirectionally
+3. Fix Room Name → Add input field for podName in both feeds
+
+Test: Create post with Room Name → Check pod is created → Check author details show → Check linking works ✅
